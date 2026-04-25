@@ -22,23 +22,25 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Password must be at least 6 characters.' })
   }
 
-  // Check if username is already taken
-  const existing = await sql`
-    SELECT id FROM users WHERE username = ${username} LIMIT 1
-  `
+  try {
+    const existing = await sql`
+      SELECT id FROM users WHERE username = ${username} LIMIT 1
+    `
 
-  if (existing.length > 0) {
-    return res.status(409).json({ error: 'Username already taken.' })
+    if (existing.length > 0) {
+      return res.status(409).json({ error: 'Username already taken.' })
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10)
+
+    await sql`
+      INSERT INTO users (name, username, password_hash, points, workouts, streak)
+      VALUES (${name}, ${username}, ${passwordHash}, 0, 0, 0)
+    `
+
+    return res.status(201).json({ success: true })
+  } catch (err) {
+    console.error('signup error:', err)
+    return res.status(500).json({ error: err.message || 'Server error.' })
   }
-
-  // Hash the password before saving
-  const passwordHash = await bcrypt.hash(password, 10)
-
-  // Insert new user with default stats
-  await sql`
-    INSERT INTO users (name, username, password_hash, points, workouts, streak)
-    VALUES (${name}, ${username}, ${passwordHash}, 0, 0, 0)
-  `
-
-  return res.status(201).json({ success: true })
 }
