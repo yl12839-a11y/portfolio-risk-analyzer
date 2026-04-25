@@ -2,14 +2,38 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 
 export default function Login() {
-  const [username, setUsername] = useState("");
+  const [playerCount, setPlayerCount] = useState(2);
+  const [playerNames, setPlayerNames] = useState(["", ""]);
   const router = useRouter();
+
+  const updatePlayerCount = (count) => {
+    const safeCount = Number(count);
+    setPlayerCount(safeCount);
+    setPlayerNames((names) =>
+      Array.from({ length: safeCount }, (_, index) => names[index] ?? "")
+    );
+  };
+
+  const updatePlayerName = (index, value) => {
+    setPlayerNames((names) =>
+      names.map((name, currentIndex) => (currentIndex === index ? value : name))
+    );
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const trimmed = username.trim();
-    if (!trimmed) return;
-    localStorage.setItem("username", trimmed);
+    const players = playerNames
+      .map((name, index) => ({
+        name: name.trim() || `Player ${index + 1}`,
+        goal: "strength",
+        score: 0,
+        completed: false,
+      }));
+
+    localStorage.setItem("players", JSON.stringify(players));
+    localStorage.setItem("activePlayerIndex", "0");
+    localStorage.setItem("username", players[0].name);
+    localStorage.setItem("gameComplete", "false");
     router.push("/onboarding");
   };
 
@@ -25,13 +49,37 @@ export default function Login() {
           </p>
           <h1 className="mt-1 text-2xl font-bold text-emerald-950">Welcome</h1>
         </div>
-        <input
-          type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Enter username"
-          className="w-full rounded-lg border border-emerald-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-        />
+
+        <div className="space-y-2">
+          <label className="block text-sm font-semibold text-emerald-950">
+            How many players?
+          </label>
+          <select
+            value={playerCount}
+            onChange={(e) => updatePlayerCount(e.target.value)}
+            className="w-full rounded-lg border border-emerald-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+          >
+            {[1, 2, 3, 4].map((count) => (
+              <option key={count} value={count}>
+                {count}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-3">
+          {playerNames.map((name, index) => (
+            <input
+              key={index}
+              type="text"
+              value={name}
+              onChange={(e) => updatePlayerName(index, e.target.value)}
+              placeholder={`Player ${index + 1} name`}
+              className="w-full rounded-lg border border-emerald-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            />
+          ))}
+        </div>
+
         <button
           type="submit"
           className="w-full rounded-lg bg-yellow-500 py-2 font-bold text-emerald-950 hover:bg-yellow-400"

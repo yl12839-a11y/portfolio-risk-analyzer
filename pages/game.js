@@ -1,24 +1,26 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import {
-  INITIAL_GAME_STATE,
-  applyWorkout,
-  hpPct,
-  xpProgressPct,
-  xpThreshold,
-} from "../lib/gameEngine";
-import { loadState, saveState, resetState } from "../lib/gameState";
+import { INITIAL_GAME_STATE, MAX_LEVEL } from "../lib/gameEngine";
+import { LEVEL_ROADMAP, formatExercise } from "../lib/levels";
 
 export default function Roadmap() {
   const router = useRouter();
   const [profile, setProfile] = useState(null);
+  const [players, setPlayers] = useState([]);
+  const [activePlayerIndex, setActivePlayerIndex] = useState(0);
   const [currentLevel, setCurrentLevel] = useState(INITIAL_GAME_STATE.level);
   const [isComplete, setIsComplete] = useState(false);
+  const [gameComplete, setGameComplete] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const username = localStorage.getItem("username");
-    const goal = localStorage.getItem("goal");
+    const savedPlayers = JSON.parse(localStorage.getItem("players") || "[]");
+    const savedActiveIndex = Number(localStorage.getItem("activePlayerIndex") || "0");
+    const safeActiveIndex =
+      Number.isFinite(savedActiveIndex) && savedActiveIndex >= 0 ? savedActiveIndex : 0;
+    const activePlayer = savedPlayers[safeActiveIndex];
+    const username = activePlayer?.name || localStorage.getItem("username");
+    const goal = activePlayer?.goal || localStorage.getItem("goal");
 
     if (!username) {
       router.replace("/");
@@ -30,41 +32,47 @@ export default function Roadmap() {
       return;
     }
 
-    setProfile({ username, goal, workout });
-    setGame(loadState());
+    if (savedPlayers.length > 0 && !activePlayer) {
+      setPlayers(savedPlayers);
+      setActivePlayerIndex(savedPlayers.length);
+      setGameComplete(true);
+      setHydrated(true);
+      return;
+    }
+
+    const storedLevel = Number(localStorage.getItem("level"));
+    const safeLevel =
+      Number.isFinite(storedLevel) && storedLevel > 0
+        ? Math.min(MAX_LEVEL, storedLevel)
+        : INITIAL_GAME_STATE.level;
+
+    setProfile({ username, goal });
+    setPlayers(savedPlayers);
+    setActivePlayerIndex(safeActiveIndex);
+    setCurrentLevel(safeLevel);
+    setIsComplete(false);
+    setGameComplete(localStorage.getItem("gameComplete") === "true" || safeActiveIndex >= savedPlayers.length);
     setHydrated(true);
   }, [router]);
 
-  useEffect(() => {
-    if (!hydrated) return;
-    saveState(game);
-  }, [hydrated, game]);
-
-  useEffect(() => {
-    if (!message) return;
-    const id = setTimeout(() => setMessage(""), 2000);
-    return () => clearTimeout(id);
-  }, [message]);
-
-  const handleSubmitReps = (e) => {
-    e.preventDefault();
-    const n = parseInt(reps, 10);
-    if (!Number.isFinite(n) || n <= 0) return;
-    const { state, enemyDefeated } = applyWorkout(game, n);
-    setGame(state);
-    setReps("");
-    if (enemyDefeated) setMessage("Enemy defeated! Level up!");
+  const handleOpenLevel = (level) => {
+    if (isComplete || level.id !== currentLevel) return;
+    router.push(`/level/${level.id}`);
   };
 
   const handleReset = () => {
-    ["username", "goal", "workout"].forEach((k) => localStorage.removeItem(k));
-    resetState();
+    ["username", "goal", "workout", "xp", "level", "enemyHP", "players", "activePlayerIndex", "gameComplete"].forEach((key) =>
+      localStorage.removeItem(key)
+    );
     router.push("/");
   };
 
-  if (!profile || !hydrated) return null;
+  if ((!profile && !gameComplete) || !hydrated) return null;
 
-  const activeLevel = LEVEL_ROADMAP[Math.min(currentLevel, MAX_LEVEL) - 1];
+  const winner =
+    players.length > 0
+      ? players.reduce((best, player) => (player.score > best.score ? player : best), players[0])
+      : null;
 
   return (
     <div className="min-h-screen bg-[#0d2a1b] text-emerald-950">
@@ -77,24 +85,62 @@ export default function Roadmap() {
                   Jungle Training Trail
                 </p>
                 <h1 className="mt-1 text-3xl font-bold text-emerald-950">
-                  Choose Your Level
+                  {gameComplete ? "Final Scores" : "Choose Your Level"}
                 </h1>
-                <p className="mt-2 text-sm text-emerald-800">
-                  Hi, {profile.username}. Goal: <span className="font-semibold">{profile.goal}</span>
-                </p>
+                {!gameComplete && (
+                  <p className="mt-2 text-sm text-emerald-800">
+                    Turn {activePlayerIndex + 1} of {players.length || 1}:{" "}
+                    <span className="font-semibold">{profile.username}</span>. Goal:{" "}
+                    <span className="font-semibold">{profile.goal}</span>
+                  </p>
+                )}
               </div>
               <div className="rounded-lg bg-emerald-900 px-4 py-3 text-lime-50">
                 <p className="text-xs font-semibold uppercase tracking-wide text-lime-200">
-                  Current Stop
+                  {gameComplete ? "Winner" : "Current Player"}
                 </p>
                 <p className="text-xl font-bold">
-                  {isComplete ? "Trail Complete" : `${activeLevel.title}: ${activeLevel.name}`}
+                  {gameComplete
+                    ? `${winner?.name || "No winner"}${winner ? `: ${winner.score} points` : ""}`
+                    : profile.username}
                 </p>
               </div>
             </div>
           </header>
 
-          <main className="grid gap-4 md:grid-cols-5">
+          {players.length > 0 && (
+            <section className="grid gap-3 md:grid-cols-4">
+              {players.map((player, index) => (
+                <div
+                  key={`${player.name}-${index}`}
+                  className={`rounded-lg border p-4 shadow-xl ${
+                    gameComplete
+                      ? winner?.name === player.name && winner?.score === player.score
+                        ? "border-yellow-200 bg-yellow-100"
+                        : "border-lime-200/60 bg-lime-50/90"
+                      : index === activePlayerIndex
+                        ? "border-yellow-200 bg-yellow-100"
+                        : player.completed
+                          ? "border-lime-200 bg-lime-100"
+                          : "border-lime-200/60 bg-lime-50/90"
+                  }`}
+                >
+                  <p className="text-sm font-semibold text-emerald-700">
+                    {index === activePlayerIndex && !gameComplete
+                      ? "Playing Now"
+                      : player.completed
+                        ? "Finished"
+                        : "Waiting"}
+                  </p>
+                  <h2 className="mt-1 text-lg font-bold text-emerald-950">{player.name}</h2>
+                  <p className="text-sm text-emerald-800">{player.score} points</p>
+                </div>
+              ))}
+            </section>
+          )}
+
+          {!gameComplete && (
+            <main className="grid gap-4 md:grid-cols-5">
             {LEVEL_ROADMAP.map((level) => {
               const complete = currentLevel > level.id || isComplete;
               const active = !isComplete && currentLevel === level.id;
@@ -140,14 +186,15 @@ export default function Roadmap() {
                 </button>
               );
             })}
-          </main>
+            </main>
+          )}
 
           <section className="grid gap-4 md:grid-cols-[1fr_auto]">
             <div className="rounded-lg border border-lime-200/60 bg-lime-50/90 p-5 shadow-xl">
               <h2 className="text-lg font-bold text-emerald-950">Trail Rule</h2>
               <p className="mt-2 text-sm text-emerald-800">
-                Level 1 opens first. Level 2 unlocks only after 10 reps on Level 1.
-                Plank levels complete after 45 seconds.
+                Each player keeps scoring until they press Stop & Save Score.
+                The next player starts after the current turn is saved.
               </p>
             </div>
             <button
