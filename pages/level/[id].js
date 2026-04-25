@@ -7,8 +7,16 @@ import { INITIAL_GAME_STATE, MAX_LEVEL } from "../../lib/gameEngine";
 import { LEVEL_ROADMAP, formatExercise, levelInstruction } from "../../lib/levels";
 
 const ROUND_SECONDS = 30;
+const PREP_SECONDS = 5;
 
-const POSE_DEFAULT = { direction: "south", frameIndex: 0, bob: 0 };
+const POSE_DEFAULT = {
+  direction: "south",
+  frameIndex: 0,
+  bob: 0,
+  shiftX: 0,
+  tilt: 0,
+  scaleY: 1,
+};
 const POSE_BY_EXERCISE = {
   squat: {
     up: { direction: "south", frameIndex: 0, bob: 0 },
@@ -145,6 +153,7 @@ export default function LevelGame() {
   const animationRef = useRef(null);
   const poseLandmarkerRef = useRef(null);
   const smoothedLandmarksRef = useRef(null);
+  const mirrorBaselineRef = useRef(null);
   const repStateRef = useRef("up");
   const holdFramesRef = useRef(0);
   const minAngleRef = useRef(180);
@@ -154,6 +163,9 @@ export default function LevelGame() {
   const plankSecondsRef = useRef(0);
   const activeExerciseRef = useRef("pushup");
   const roundIntervalRef = useRef(null);
+  const prepIntervalRef = useRef(null);
+  const trackingRef = useRef(false);
+  const prepTimeLeftRef = useRef(PREP_SECONDS);
   const mirrorPoseRef = useRef(POSE_DEFAULT);
   const [profile, setProfile] = useState(null);
   const [players, setPlayers] = useState([]);
@@ -164,6 +176,7 @@ export default function LevelGame() {
   const [message, setMessage] = useState("");
   const [cameraStatus, setCameraStatus] = useState("idle");
   const [tracking, setTracking] = useState(false);
+  const [prepTimeLeft, setPrepTimeLeft] = useState(PREP_SECONDS);
   const [repCount, setRepCount] = useState(0);
   const [plankSeconds, setPlankSeconds] = useState(0);
   const [formMessage, setFormMessage] = useState("--");
@@ -176,12 +189,20 @@ export default function LevelGame() {
 
   const updateMirrorPose = useCallback((exercise, isDown) => {
     const poses = POSE_BY_EXERCISE[exercise] || POSE_BY_EXERCISE.squat;
-    const next = isDown ? poses.down : poses.up;
+    const basePose = isDown ? poses.down : poses.up;
     const current = mirrorPoseRef.current;
+    const next = {
+      ...current,
+      direction: basePose.direction,
+      frameIndex: basePose.frameIndex,
+    };
     if (
       next.direction === current.direction &&
       next.frameIndex === current.frameIndex &&
-      next.bob === current.bob
+      next.bob === current.bob &&
+      next.shiftX === current.shiftX &&
+      next.tilt === current.tilt &&
+      next.scaleY === current.scaleY
     ) {
       return;
     }
@@ -195,14 +216,15 @@ export default function LevelGame() {
     minAngleRef.current = 180;
     plankFramesRef.current = 0;
     smoothedLandmarksRef.current = null;
+    mirrorBaselineRef.current = null;
     activeExerciseRef.current = nextExercise;
     setActiveExercise(nextExercise);
     setFormMessage("--");
     setFormTone("text-lime-50");
     setDebugLines([]);
     const restPose = (POSE_BY_EXERCISE[nextExercise] || POSE_BY_EXERCISE.squat).up;
-    mirrorPoseRef.current = restPose;
-    setMirrorPose(restPose);
+    mirrorPoseRef.current = { ...POSE_DEFAULT, ...restPose };
+    setMirrorPose({ ...POSE_DEFAULT, ...restPose });
 
     if (plankIntervalRef.current) {
       clearInterval(plankIntervalRef.current);
@@ -281,6 +303,74 @@ export default function LevelGame() {
       `Back: ${angles.back.toFixed(1)} deg`,
       `State: ${stateLabel}`,
     ]);
+  }, []);
+
+  const syncMirrorPoseToLandmarks = useCallback((exercise, angles, landmarks) => {
+    const leftShoulder = landmarks[11];
+    const rightShoulder = landmarks[12];
+    const leftHip = landmarks[23];
+    const rightHip = landmarks[24];
+
+    if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) return;
+
+    const torsoCenterX =
+      (leftShoulder.x + rightShoulder.x + leftHip.x + rightHip.x) / 4;
+    const torsoCenterY =
+      (leftShoulder.y + rightShoulder.y + leftHip.y + rightHip.y) / 4;
+
+    if (!mirrorBaselineRef.current) {
+      mirrorBaselineRef.current = {
+        x: torsoCenterX,
+        y: torsoCenterY,
+      };
+    }
+
+    const baseline = mirrorBaselineRef.current;
+    const shiftX = Math.max(-28, Math.min(28, (torsoCenterX - baseline.x) * 220));
+    const bob = Math.max(-14, Math.min(24, (torsoCenterY - baseline.y) * 220));
+    const tilt = Math.max(
+      -12,
+      Math.min(12, (rightShoulder.y - leftShoulder.y) * 90)
+    );
+
+    let frameIndex = 0;
+    let direction = "south";
+    let scaleY = 1;
+
+    if (exercise === "squat") {
+      direction = "south";
+      frameIndex = angles.knee < 118 ? 1 : 0;
+      scaleY = angles.knee < 118 ? 0.92 : 1;
+    } else {
+      direction = "east";
+      frameIndex = angles.elbow < 110 ? 1 : 0;
+      scaleY = exercise === "plank" ? 0.96 : 1;
+    }
+
+    const current = mirrorPoseRef.current;
+    const next = {
+      ...current,
+      direction,
+      frameIndex,
+      bob,
+      shiftX,
+      tilt,
+      scaleY,
+    };
+
+    if (
+      next.direction === current.direction &&
+      next.frameIndex === current.frameIndex &&
+      Math.abs(next.bob - current.bob) < 0.5 &&
+      Math.abs(next.shiftX - current.shiftX) < 0.5 &&
+      Math.abs(next.tilt - current.tilt) < 0.3 &&
+      Math.abs(next.scaleY - current.scaleY) < 0.02
+    ) {
+      return;
+    }
+
+    mirrorPoseRef.current = next;
+    setMirrorPose(next);
   }, []);
 
   const countSquat = useCallback(
@@ -446,8 +536,15 @@ export default function LevelGame() {
     smoothedLandmarksRef.current = smoothed;
     const angles = calculateAngles(smoothed);
     drawSkeleton(smoothed);
+    syncMirrorPoseToLandmarks(activeExerciseRef.current, angles, smoothed);
 
-    if (activeExerciseRef.current === "squat") {
+    if (!trackingRef.current) {
+      setDebugState(
+        angles,
+        `prep (${prepTimeLeftRef.current}s)`,
+        activeExerciseRef.current
+      );
+    } else if (activeExerciseRef.current === "squat") {
       countSquat(angles);
     } else if (activeExerciseRef.current === "pushup") {
       countPushup(angles);
@@ -456,7 +553,7 @@ export default function LevelGame() {
     }
 
     animationRef.current = requestAnimationFrame(runDetection);
-  }, [countPlank, countPushup, countSquat, drawSkeleton, updateHudState]);
+  }, [countPlank, countPushup, countSquat, drawSkeleton, setDebugState, syncMirrorPoseToLandmarks, updateHudState]);
 
   const stopCamera = useCallback(() => {
     if (animationRef.current) {
@@ -474,6 +571,11 @@ export default function LevelGame() {
       roundIntervalRef.current = null;
     }
 
+    if (prepIntervalRef.current) {
+      clearInterval(prepIntervalRef.current);
+      prepIntervalRef.current = null;
+    }
+
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -489,7 +591,10 @@ export default function LevelGame() {
       ctx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
     }
 
+    trackingRef.current = false;
+    prepTimeLeftRef.current = PREP_SECONDS;
     setTracking(false);
+    setPrepTimeLeft(PREP_SECONDS);
     setCameraStatus("idle");
     resetTrackingState(activeExerciseRef.current);
   }, [resetTrackingState]);
@@ -540,7 +645,10 @@ export default function LevelGame() {
     setActivePlayerIndex(safeActiveIndex);
     setStoredLevel(safeSavedLevel);
     setLevel(roadmapLevel);
+    prepTimeLeftRef.current = PREP_SECONDS;
+    trackingRef.current = false;
     setTimeLeft(ROUND_SECONDS);
+    setPrepTimeLeft(PREP_SECONDS);
     setHydrated(true);
   }, [resetTrackingState, router]);
 
@@ -600,21 +708,42 @@ export default function LevelGame() {
         await videoRef.current.play();
       }
 
-      setTracking(true);
       setCameraStatus("ready");
-      updateHudState("Pose tracking live", "text-lime-300");
+      trackingRef.current = false;
+      prepTimeLeftRef.current = PREP_SECONDS;
+      setTracking(false);
+      setPrepTimeLeft(PREP_SECONDS);
+      updateHudState(`Get in position: ${PREP_SECONDS}`, "text-amber-300");
       animationRef.current = requestAnimationFrame(runDetection);
 
       setTimeLeft(ROUND_SECONDS);
       if (roundIntervalRef.current) clearInterval(roundIntervalRef.current);
-      roundIntervalRef.current = setInterval(() => {
-        setTimeLeft((current) => {
+      if (prepIntervalRef.current) clearInterval(prepIntervalRef.current);
+      prepIntervalRef.current = setInterval(() => {
+        setPrepTimeLeft((current) => {
           if (current <= 1) {
-            clearInterval(roundIntervalRef.current);
-            roundIntervalRef.current = null;
+            clearInterval(prepIntervalRef.current);
+            prepIntervalRef.current = null;
+            prepTimeLeftRef.current = 0;
+            trackingRef.current = true;
+            setTracking(true);
+            updateHudState("Pose tracking live", "text-lime-300");
+            roundIntervalRef.current = setInterval(() => {
+              setTimeLeft((remaining) => {
+                if (remaining <= 1) {
+                  clearInterval(roundIntervalRef.current);
+                  roundIntervalRef.current = null;
+                  return 0;
+                }
+                return remaining - 1;
+              });
+            }, 1000);
             return 0;
           }
-          return current - 1;
+          const next = current - 1;
+          prepTimeLeftRef.current = next;
+          updateHudState(`Get in position: ${next}`, "text-amber-300");
+          return next;
         });
       }, 1000);
     } catch (error) {
@@ -691,6 +820,8 @@ export default function LevelGame() {
 
   const exerciseLabel = level.exercises.map(formatExercise).join(" + ");
   const mainCounter = activeExercise === "plank" ? `${plankSeconds}s` : `${repCount}`;
+  const timerValue = tracking ? `${timeLeft}s` : cameraStatus === "ready" ? `${prepTimeLeft}s` : `${ROUND_SECONDS}s`;
+  const timerUrgent = tracking ? timeLeft <= 3 : cameraStatus === "ready" && prepTimeLeft <= 3;
 
   return (
     <main className="pixel-page px-4 py-6 sm:px-6 lg:px-8">
@@ -762,15 +893,13 @@ export default function LevelGame() {
                   </div>
                   <div
                     className={`flex flex-col items-center justify-center rounded-lg border-2 px-4 py-3 shadow-lg ${
-                      tracking && timeLeft <= 3
+                      timerUrgent
                         ? "border-red-300 bg-red-500/30 text-red-50 animate-pulse"
                         : "border-lime-300/60 bg-black/70 text-lime-100"
                     }`}
                   >
                     <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Time</p>
-                    <p className="text-3xl font-black leading-none">
-                      {tracking ? timeLeft : ROUND_SECONDS}s
-                    </p>
+                    <p className="text-3xl font-black leading-none">{timerValue}</p>
                   </div>
                 </div>
 
@@ -817,8 +946,9 @@ export default function LevelGame() {
                     <div className="absolute inset-x-2 bottom-1 h-2 rounded-full bg-black/40 blur-sm" />
                     <div
                       style={{
-                        transform: `translateY(${mirrorPose.bob}px)`,
-                        transition: "transform 220ms ease-out",
+                        transform: `translate(${mirrorPose.shiftX}px, ${mirrorPose.bob}px) rotate(${mirrorPose.tilt}deg) scaleY(${mirrorPose.scaleY})`,
+                        transition: "transform 120ms ease-out",
+                        transformOrigin: "center bottom",
                       }}
                     >
                       <CharacterSprite
@@ -836,7 +966,7 @@ export default function LevelGame() {
 
               <button
                 type="button"
-                onClick={tracking ? finishTurn : startCamera}
+                onClick={tracking || cameraStatus === "ready" ? finishTurn : startCamera}
                 disabled={cameraStatus === "loading-model" || cameraStatus === "requesting"}
                 className="pixel-btn pixel-btn-primary w-full px-4 py-3 text-base disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -844,7 +974,7 @@ export default function LevelGame() {
                   ? "Loading Detector..."
                   : cameraStatus === "requesting"
                     ? "Starting Camera..."
-                    : tracking
+                    : tracking || cameraStatus === "ready"
                       ? "Stop & Save Score"
                       : "Start Game Camera"}
               </button>
