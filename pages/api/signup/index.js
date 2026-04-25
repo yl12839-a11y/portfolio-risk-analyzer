@@ -1,7 +1,5 @@
-import { neon } from '@neondatabase/serverless'
 import bcrypt from 'bcryptjs'
-
-const sql = neon(process.env.DATABASE_URL)
+import { sql, ensureSchema } from '@/lib/db'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -23,6 +21,8 @@ export default async function handler(req, res) {
   }
 
   try {
+    await ensureSchema()
+
     const existing = await sql`
       SELECT id FROM users WHERE username = ${username} LIMIT 1
     `
@@ -34,8 +34,8 @@ export default async function handler(req, res) {
     const passwordHash = await bcrypt.hash(password, 10)
 
     await sql`
-      INSERT INTO users (name, username, password_hash, points, workouts, streak)
-      VALUES (${name}, ${username}, ${passwordHash}, 0, 0, 0)
+      INSERT INTO users (name, username, password_hash)
+      VALUES (${name}, ${username}, ${passwordHash})
     `
 
     return res.status(201).json({ success: true })

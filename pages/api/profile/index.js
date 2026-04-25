@@ -1,8 +1,6 @@
-import { neon } from '@neondatabase/serverless'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-
-const sql = neon(process.env.DATABASE_URL)
+import { sql, ensureSchema } from '@/lib/db'
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -16,6 +14,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    await ensureSchema()
     const rows = await sql`
       SELECT name, username, points, workouts, streak, created_at
       FROM users
