@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { INITIAL_GAME_STATE, MAX_LEVEL } from "../lib/gameEngine";
-import { LEVEL_ROADMAP, formatExercise } from "../lib/levels";
+import {
+  INITIAL_GAME_STATE,
+  applyWorkout,
+  hpPct,
+  xpProgressPct,
+  xpThreshold,
+} from "../lib/gameEngine";
+import { loadState, saveState, resetState } from "../lib/gameState";
 
 export default function Roadmap() {
   const router = useRouter();
@@ -24,28 +30,35 @@ export default function Roadmap() {
       return;
     }
 
-    const storedLevel = Number(localStorage.getItem("level"));
-    const storedHP = Number(localStorage.getItem("enemyHP") ?? INITIAL_GAME_STATE.enemyHP);
-    const safeLevel =
-      Number.isFinite(storedLevel) && storedLevel > 0
-        ? Math.min(MAX_LEVEL, storedLevel)
-        : INITIAL_GAME_STATE.level;
-
-    setProfile({ username, goal });
-    setCurrentLevel(safeLevel);
-    setIsComplete(safeLevel === MAX_LEVEL && storedHP === 0);
+    setProfile({ username, goal, workout });
+    setGame(loadState());
     setHydrated(true);
   }, [router]);
 
-  const handleOpenLevel = (level) => {
-    if (isComplete || level.id !== currentLevel) return;
-    router.push(`/level/${level.id}`);
+  useEffect(() => {
+    if (!hydrated) return;
+    saveState(game);
+  }, [hydrated, game]);
+
+  useEffect(() => {
+    if (!message) return;
+    const id = setTimeout(() => setMessage(""), 2000);
+    return () => clearTimeout(id);
+  }, [message]);
+
+  const handleSubmitReps = (e) => {
+    e.preventDefault();
+    const n = parseInt(reps, 10);
+    if (!Number.isFinite(n) || n <= 0) return;
+    const { state, enemyDefeated } = applyWorkout(game, n);
+    setGame(state);
+    setReps("");
+    if (enemyDefeated) setMessage("Enemy defeated! Level up!");
   };
 
   const handleReset = () => {
-    ["username", "goal", "workout", "xp", "level", "enemyHP"].forEach((key) =>
-      localStorage.removeItem(key)
-    );
+    ["username", "goal", "workout"].forEach((k) => localStorage.removeItem(k));
+    resetState();
     router.push("/");
   };
 
