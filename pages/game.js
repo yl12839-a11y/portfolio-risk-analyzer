@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import {
   INITIAL_GAME_STATE,
-  applyReps,
+  applyWorkout,
   hpPct,
   xpProgressPct,
   xpThreshold,
-} from "../lib/gameLogic";
+} from "../lib/gameEngine";
 
 export default function Game() {
   const router = useRouter();
@@ -60,7 +60,7 @@ export default function Game() {
     e.preventDefault();
     const n = parseInt(reps, 10);
     if (!Number.isFinite(n) || n <= 0) return;
-    const { state, enemyDefeated } = applyReps(game, n);
+    const { state, enemyDefeated } = applyWorkout(game, n);
     setGame(state);
     setReps("");
     if (enemyDefeated) setMessage("Enemy defeated! Level up!");
