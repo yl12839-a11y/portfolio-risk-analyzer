@@ -41,10 +41,17 @@ export default function SignupPage() {
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const rawBody = await res.text();
+      let data = {};
+      try {
+        data = rawBody ? JSON.parse(rawBody) : {};
+      } catch {
+        // body was not JSON (e.g., Vercel HTML error page)
+      }
 
       if (!res.ok) {
-        setError(data.error || `Signup failed (${res.status}).`);
+        const detail = data.error || rawBody.slice(0, 200) || `Signup failed (${res.status}).`;
+        setError(detail);
         setLoading(false);
         return;
       }
