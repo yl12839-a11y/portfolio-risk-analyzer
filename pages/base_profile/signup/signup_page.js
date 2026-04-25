@@ -30,25 +30,30 @@ export default function SignupPage() {
 
     setLoading(true)
 
-    const res = await fetch('/api/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        username: username.toLowerCase(),
-        password,
-      }),
-    })
+    try {
+      const res = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          username: username.toLowerCase(),
+          password,
+        }),
+      })
 
-    const data = await res.json()
+      const data = await res.json().catch(() => ({}))
 
-    if (!res.ok) {
-      setError(data.error || 'Something went wrong.')
+      if (!res.ok) {
+        setError(data.error || `Signup failed (${res.status}).`)
+        setLoading(false)
+        return
+      }
+
+      router.push('/base_profile/login/login_page')
+    } catch (err) {
+      setError(`Network error: ${err.message}`)
       setLoading(false)
-      return
     }
-
-    router.push('/base_profile/login/login_page')
   }
 
   return (

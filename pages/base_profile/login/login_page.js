@@ -20,32 +20,37 @@ export default function LoginPage() {
 
     setLoading(true)
 
-    const result = await signIn('credentials', {
-      username: username.toLowerCase(),
-      password,
-      redirect: false,
-    })
+    try {
+      const result = await signIn('credentials', {
+        username: username.toLowerCase(),
+        password,
+        redirect: false,
+      })
 
-    if (result?.error) {
-      setError('Incorrect username or password.')
+      if (result?.error) {
+        setError('Incorrect username or password.')
+        setLoading(false)
+        return
+      }
+
+      const session = await getSession()
+      const sessionUsername = session?.user?.username || username.toLowerCase()
+
+      localStorage.setItem(
+        'players',
+        JSON.stringify([
+          { name: sessionUsername, goal: 'strength', score: 0, completed: false },
+        ])
+      )
+      localStorage.setItem('activePlayerIndex', '0')
+      localStorage.setItem('username', sessionUsername)
+      localStorage.setItem('gameComplete', 'false')
+
+      router.push('/avatar')
+    } catch (err) {
+      setError(`Network error: ${err.message}`)
       setLoading(false)
-      return
     }
-
-    const session = await getSession()
-    const sessionUsername = session?.user?.username || username.toLowerCase()
-
-    localStorage.setItem(
-      'players',
-      JSON.stringify([
-        { name: sessionUsername, goal: 'strength', score: 0, completed: false },
-      ])
-    )
-    localStorage.setItem('activePlayerIndex', '0')
-    localStorage.setItem('username', sessionUsername)
-    localStorage.setItem('gameComplete', 'false')
-
-    router.push('/avatar')
   }
 
   return (
