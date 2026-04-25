@@ -20,16 +20,6 @@ export default function AvatarCreator() {
       setHydrated(true);
       return;
     }
-    if (!profile.goal || !profile.workout) {
-      setPreviewMode(true);
-      setStatusMessage("Preview mode: onboarding is incomplete, using default character settings.");
-      setPlayerName(profile.username);
-      if (profile.avatar && typeof profile.avatar === "object") {
-        setConfig({ ...DEFAULT_AVATAR, ...profile.avatar });
-      }
-      setHydrated(true);
-      return;
-    }
     setPlayerName(profile.username);
     if (profile.avatar && typeof profile.avatar === "object") {
       setConfig({ ...DEFAULT_AVATAR, ...profile.avatar });
@@ -39,11 +29,11 @@ export default function AvatarCreator() {
 
   const handleContinue = () => {
     if (previewMode) {
-      setStatusMessage("Preview mode is active. Finish login and onboarding to save this character.");
+      setStatusMessage("Preview mode is active. Finish login to save this character.");
       return;
     }
     saveProfile({ avatar: config });
-    router.push("/game");
+    router.push("/onboarding");
   };
 
   if (!hydrated) {
@@ -79,7 +69,7 @@ export default function AvatarCreator() {
                   Character Select
                 </div>
                 <h1 className="mt-3 text-2xl font-black tracking-[0.12em] text-white sm:text-4xl">
-                  Choose Your Hero
+                  Select Your Character
                 </h1>
                 <p className="mt-2 max-w-xl text-sm text-blue-100/80 sm:text-base">
                   Pick who <span className="font-semibold text-white">{playerName}</span> will play as before entering the game.
@@ -130,24 +120,6 @@ export default function AvatarCreator() {
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-3">
-                  {Object.values(AVATAR_PRESETS).map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => setConfig({ preset: preset.id })}
-                      className={`pixel-row w-full p-3 text-center ${
-                        config.preset === preset.id ? "ring-2 ring-blue-400/60" : ""
-                      }`}
-                    >
-                      <div className="pixel-label text-xs uppercase text-stone-600">{preset.label}</div>
-                      <div className="pixel-title mt-2 text-lg text-stone-900">{preset.role}</div>
-                      <div className="mt-1 text-sm text-stone-700">
-                        {config.preset === preset.id ? "Selected" : "Click to choose"}
-                      </div>
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <div className="pixel-subpanel p-4 sm:p-5">
@@ -172,14 +144,12 @@ export default function AvatarCreator() {
                   </div>
 
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                    <div className="pixel-row px-4 py-3">
-                      <div className="pixel-label text-xs uppercase text-stone-600">Player 1</div>
-                      <div className="mt-1 text-sm font-semibold text-stone-900">Girl</div>
-                    </div>
-                    <div className="pixel-row px-4 py-3">
-                      <div className="pixel-label text-xs uppercase text-stone-600">Player 2</div>
-                      <div className="mt-1 text-sm font-semibold text-stone-900">Boy</div>
-                    </div>
+                    {Object.values(AVATAR_PRESETS).map((preset) => (
+                      <div key={preset.id} className="pixel-row px-4 py-3">
+                        <div className="pixel-label text-xs uppercase text-stone-600">{preset.label}</div>
+                        <div className="mt-1 text-sm font-semibold text-stone-900">{preset.role}</div>
+                      </div>
+                    ))}
                     <div className="pixel-row px-4 py-3">
                       <div className="pixel-label text-xs uppercase text-stone-600">Current Pick</div>
                       <div className="mt-1 text-sm font-semibold text-stone-900">{AVATAR_PRESETS[config.preset]?.role ?? "Unknown"}</div>

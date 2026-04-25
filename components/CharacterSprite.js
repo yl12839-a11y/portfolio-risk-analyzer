@@ -1,13 +1,12 @@
 import { useState } from "react";
 import {
   AVATAR_PRESETS,
+  BODY_SHEET_HEIGHT,
   FRAME_SIZE,
   IDLE_OFFSET_X,
   IDLE_OFFSET_Y,
   SHEET_WIDTH,
 } from "../lib/avatar";
-
-const SHEET_HEIGHT = 2944;
 
 export default function CharacterSprite({
   preset = "player1",
@@ -27,7 +26,7 @@ export default function CharacterSprite({
         width: size,
         height: size,
         backgroundImage: `url("${sheetUrl}")`,
-        backgroundSize: `${SHEET_WIDTH * scale}px ${SHEET_HEIGHT * scale}px`,
+        backgroundSize: `${SHEET_WIDTH * scale}px ${BODY_SHEET_HEIGHT * scale}px`,
         backgroundPosition: `${IDLE_OFFSET_X * scale}px ${IDLE_OFFSET_Y * scale}px`,
         backgroundRepeat: "no-repeat",
         imageRendering: "pixelated",
