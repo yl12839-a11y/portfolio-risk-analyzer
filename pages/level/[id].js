@@ -16,6 +16,8 @@ export default function LevelGame() {
   const repCountRef = useRef(0);
   const plankSecondsRef = useRef(0);
   const [profile, setProfile] = useState(null);
+  const [players, setPlayers] = useState([]);
+  const [activePlayerIndex, setActivePlayerIndex] = useState(0);
   const [storedLevel, setStoredLevel] = useState(INITIAL_GAME_STATE.level);
   const [level, setLevel] = useState(null);
   const [isComplete, setIsComplete] = useState(false);
@@ -57,8 +59,13 @@ export default function LevelGame() {
   useEffect(() => {
     if (!router.isReady) return;
 
-    const username = localStorage.getItem("username");
-    const goal = localStorage.getItem("goal");
+    const savedPlayers = JSON.parse(localStorage.getItem("players") || "[]");
+    const savedActiveIndex = Number(localStorage.getItem("activePlayerIndex") || "0");
+    const safeActiveIndex =
+      Number.isFinite(savedActiveIndex) && savedActiveIndex >= 0 ? savedActiveIndex : 0;
+    const activePlayer = savedPlayers[safeActiveIndex];
+    const username = activePlayer?.name || localStorage.getItem("username");
+    const goal = activePlayer?.goal || localStorage.getItem("goal");
     if (!username) {
       router.replace("/");
       return;
@@ -74,7 +81,7 @@ export default function LevelGame() {
     const savedHP = Number(localStorage.getItem("enemyHP") ?? INITIAL_GAME_STATE.enemyHP);
     const safeSavedLevel =
       Number.isFinite(savedLevel) && savedLevel > 0
-        ? Math.min(MAX_LEVEL, savedLevel)
+        ? Math.min(LEVEL_ROADMAP.length, savedLevel)
         : INITIAL_GAME_STATE.level;
 
     if (!roadmapLevel || requestedLevel !== safeSavedLevel || savedHP === 0) {
@@ -83,6 +90,8 @@ export default function LevelGame() {
     }
 
     setProfile({ username, goal });
+    setPlayers(savedPlayers);
+    setActivePlayerIndex(safeActiveIndex);
     setStoredLevel(safeSavedLevel);
     setLevel(roadmapLevel);
     setIsComplete(safeSavedLevel === MAX_LEVEL && savedHP === 0);
@@ -95,44 +104,16 @@ export default function LevelGame() {
     return () => clearTimeout(id);
   }, [message]);
 
-  const completeLevel = useCallback((completedLevel) => {
-    const nextLevel = Math.min(MAX_LEVEL, completedLevel.id + 1);
-    const finishedFinalLevel = completedLevel.id === MAX_LEVEL;
-    const storedXp = Number(localStorage.getItem("xp"));
-    const nextXp = (Number.isFinite(storedXp) && storedXp > 0 ? storedXp : 0) + 100;
-
-    localStorage.setItem("xp", String(nextXp));
-    localStorage.setItem("level", String(nextLevel));
-    localStorage.setItem("enemyHP", finishedFinalLevel ? "0" : "100");
-
-    setMessage(
-      finishedFinalLevel
-        ? "All 5 jungle levels complete."
-        : `Level ${completedLevel.id} complete. Level ${nextLevel} unlocked.`
-    );
-    stopCamera();
-    setTimeout(() => router.push("/game"), 900);
-  }, [router, stopCamera]);
-
-  const checkLevelCompletion = useCallback((completedLevel, reps, seconds) => {
-    const repsComplete = completedLevel.targetReps === 0 || reps >= completedLevel.targetReps;
-    const secondsComplete =
-      completedLevel.targetSeconds === 0 || seconds >= completedLevel.targetSeconds;
-
-    if (repsComplete && secondsComplete) completeLevel(completedLevel);
-  }, [completeLevel]);
-
   const awardRep = useCallback(() => {
     if (!level || isComplete) return;
 
     setRepCount((score) => {
       const nextScore = score + 1;
       repCountRef.current = nextScore;
-      setMessage(`Rep ${nextScore} of ${level.targetReps}`);
-      checkLevelCompletion(level, nextScore, plankSecondsRef.current);
+      setMessage(`Rep ${nextScore}`);
       return nextScore;
     });
-  }, [checkLevelCompletion, isComplete, level]);
+  }, [isComplete, level]);
 
   const trackMotion = useCallback(() => {
     const video = videoRef.current;
@@ -214,8 +195,7 @@ export default function LevelGame() {
           setPlankSeconds((seconds) => {
             const nextSeconds = seconds + 1;
             plankSecondsRef.current = nextSeconds;
-            setMessage(`${nextSeconds} of ${level.targetSeconds} seconds`);
-            checkLevelCompletion(level, repCountRef.current, nextSeconds);
+            setMessage(`${nextSeconds} seconds`);
             return nextSeconds;
           });
         }, 1000);
@@ -228,6 +208,42 @@ export default function LevelGame() {
       setCameraStatus("error");
       setMessage("Camera permission is required to score your workout.");
     }
+  };
+
+  const finishTurn = () => {
+    const currentTurnScore = repCountRef.current * 10 + plankSecondsRef.current;
+    const savedPlayers = JSON.parse(localStorage.getItem("players") || "[]");
+    const updatedPlayers = savedPlayers.map((player, index) =>
+      index === activePlayerIndex
+        ? {
+            ...player,
+            score: (Number(player.score) || 0) + currentTurnScore,
+            completed: true,
+          }
+        : player
+    );
+    const nextPlayerIndex = activePlayerIndex + 1;
+    const nextPlayer = updatedPlayers[nextPlayerIndex];
+
+    localStorage.setItem("players", JSON.stringify(updatedPlayers));
+    localStorage.setItem("activePlayerIndex", String(nextPlayerIndex));
+    localStorage.setItem("xp", "0");
+    localStorage.setItem("level", "1");
+    localStorage.setItem("enemyHP", "100");
+
+    if (nextPlayer) {
+      localStorage.setItem("username", nextPlayer.name);
+      localStorage.setItem("goal", nextPlayer.goal);
+      localStorage.setItem("gameComplete", "false");
+      setMessage(`${profile.username} scored ${currentTurnScore}. ${nextPlayer.name} is next.`);
+    } else {
+      localStorage.setItem("gameComplete", "true");
+      setMessage(`${profile.username} scored ${currentTurnScore}. Final scores are ready.`);
+    }
+
+    setPlayers(updatedPlayers);
+    stopCamera();
+    setTimeout(() => router.push("/game"), 900);
   };
 
   if (!hydrated || !profile || !level) return null;
@@ -251,7 +267,8 @@ export default function LevelGame() {
                 {level.title}: {level.name}
               </h1>
               <p className="mt-1 text-sm text-emerald-800">
-                {profile.username} - {exerciseLabel}
+                Player {activePlayerIndex + 1} of {players.length || 1}: {profile.username} -{" "}
+                {exerciseLabel}
               </p>
             </div>
             <div className="rounded-lg bg-emerald-950 px-4 py-3 text-lime-50">
@@ -294,14 +311,14 @@ export default function LevelGame() {
 
               <button
                 type="button"
-                onClick={tracking ? stopCamera : startCamera}
+                onClick={tracking ? finishTurn : startCamera}
                 disabled={cameraStatus === "requesting"}
                 className="w-full rounded-lg bg-yellow-500 px-4 py-3 font-bold text-emerald-950 shadow-lg hover:bg-yellow-400 disabled:cursor-not-allowed disabled:bg-yellow-200"
               >
                 {cameraStatus === "requesting"
                   ? "Starting Camera..."
                   : tracking
-                    ? "Stop Tracking"
+                    ? "Stop & Save Score"
                     : "Start Camera Tracking"}
               </button>
             </section>
@@ -312,6 +329,9 @@ export default function LevelGame() {
                   Trail Progress
                 </p>
                 <h2 className="mt-1 text-xl font-bold">Level {storedLevel}</h2>
+                <p className="mt-1 text-sm text-emerald-800">
+                  Current turn score: {repCount * 10 + plankSeconds}
+                </p>
               </div>
 
               {level.targetReps > 0 && (
