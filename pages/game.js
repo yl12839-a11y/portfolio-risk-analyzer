@@ -7,6 +7,7 @@ import {
   xpProgressPct,
   xpThreshold,
 } from "../lib/gameEngine";
+import { loadState, saveState, resetState } from "../lib/gameState";
 
 export default function Game() {
   const router = useRouter();
@@ -30,24 +31,14 @@ export default function Game() {
       return;
     }
 
-    const storedXp = Number(localStorage.getItem("xp"));
-    const storedLevel = Number(localStorage.getItem("level"));
-    const storedHP = Number(localStorage.getItem("enemyHP"));
-
     setProfile({ username, goal, workout });
-    setGame({
-      xp: Number.isFinite(storedXp) && storedXp > 0 ? storedXp : INITIAL_GAME_STATE.xp,
-      level: Number.isFinite(storedLevel) && storedLevel > 0 ? storedLevel : INITIAL_GAME_STATE.level,
-      enemyHP: Number.isFinite(storedHP) && storedHP > 0 ? storedHP : INITIAL_GAME_STATE.enemyHP,
-    });
+    setGame(loadState());
     setHydrated(true);
   }, [router]);
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem("xp", String(game.xp));
-    localStorage.setItem("level", String(game.level));
-    localStorage.setItem("enemyHP", String(game.enemyHP));
+    saveState(game);
   }, [hydrated, game]);
 
   useEffect(() => {
@@ -67,9 +58,8 @@ export default function Game() {
   };
 
   const handleReset = () => {
-    ["username", "goal", "workout", "xp", "level", "enemyHP"].forEach((k) =>
-      localStorage.removeItem(k)
-    );
+    ["username", "goal", "workout"].forEach((k) => localStorage.removeItem(k));
+    resetState();
     router.push("/");
   };
 
