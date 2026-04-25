@@ -743,7 +743,7 @@ export default function LevelGame() {
 
           <main className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_340px]">
             <section className="pixel-row space-y-4 p-5">
-              <div className="relative overflow-hidden rounded-lg border-4 border-[#d6e1ff] bg-[#1c2d4d] min-h-[60vh] md:min-h-[70vh] lg:min-h-[78vh]">
+              <div className="relative aspect-[4/3] overflow-hidden rounded-lg border-4 border-[#d6e1ff] bg-[#1c2d4d]">
                 <video
                   ref={videoRef}
                   playsInline
