@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
+import { saveProfile } from "../lib/profile";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -9,7 +10,7 @@ export default function Login() {
     e.preventDefault();
     const trimmed = username.trim();
     if (!trimmed) return;
-    localStorage.setItem("username", trimmed);
+    saveProfile({ username: trimmed });
     router.push("/onboarding");
   };
 

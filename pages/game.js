@@ -4,10 +4,13 @@ import {
   INITIAL_GAME_STATE,
   applyWorkout,
   hpPct,
+  sanitizeReps,
   xpProgressPct,
   xpThreshold,
 } from "../lib/gameEngine";
 import { loadState, saveState, resetState } from "../lib/gameState";
+import { loadProfile, resetProfile } from "../lib/profile";
+import CharacterSprite from "../components/CharacterSprite";
 
 export default function Game() {
   const router = useRouter();
@@ -18,20 +21,22 @@ export default function Game() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const username = localStorage.getItem("username");
-    const goal = localStorage.getItem("goal");
-    const workout = localStorage.getItem("workout");
+    const stored = loadProfile();
 
-    if (!username) {
+    if (!stored.username) {
       router.replace("/");
       return;
     }
-    if (!goal || !workout) {
+    if (!stored.goal || !stored.workout) {
       router.replace("/onboarding");
       return;
     }
+    if (!stored.avatar) {
+      router.replace("/avatar");
+      return;
+    }
 
-    setProfile({ username, goal, workout });
+    setProfile(stored);
     setGame(loadState());
     setHydrated(true);
   }, [router]);
@@ -49,8 +54,8 @@ export default function Game() {
 
   const handleSubmitReps = (e) => {
     e.preventDefault();
-    const n = parseInt(reps, 10);
-    if (!Number.isFinite(n) || n <= 0) return;
+    const n = sanitizeReps(reps);
+    if (n === null) return;
     const { state, enemyDefeated } = applyWorkout(game, n);
     setGame(state);
     setReps("");
@@ -58,7 +63,7 @@ export default function Game() {
   };
 
   const handleReset = () => {
-    ["username", "goal", "workout"].forEach((k) => localStorage.removeItem(k));
+    resetProfile();
     resetState();
     router.push("/");
   };
@@ -68,8 +73,13 @@ export default function Game() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
       <div className="bg-white p-8 rounded-2xl shadow-md w-full max-w-md space-y-6">
-        <div className="flex items-baseline justify-between">
-          <h1 className="text-2xl font-bold">Hi, {profile.username}</h1>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-1 shrink-0">
+              <CharacterSprite preset={profile.avatar?.preset} scale={2} />
+            </div>
+            <h1 className="text-2xl font-bold">Hi, {profile.username}</h1>
+          </div>
           <span className="text-sm font-medium text-blue-600">
             Level {game.level}
           </span>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import { loadProfile, saveProfile } from "../lib/profile";
 
 const GOALS = ["strength", "endurance", "general fitness"];
 const WORKOUTS = ["pushups", "squats", "plank"];
@@ -10,16 +11,15 @@ export default function Onboarding() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!localStorage.getItem("username")) {
+    if (!loadProfile().username) {
       router.replace("/");
     }
   }, [router]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    localStorage.setItem("goal", goal);
-    localStorage.setItem("workout", workout);
-    router.push("/game");
+    saveProfile({ goal, workout });
+    router.push("/avatar");
   };
 
   return (
