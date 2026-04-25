@@ -743,16 +743,16 @@ export default function LevelGame() {
 
           <main className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_340px]">
             <section className="pixel-row space-y-4 p-5">
-              <div className="relative aspect-[4/3] overflow-hidden rounded-lg border-4 border-[#d6e1ff] bg-[#1c2d4d]">
+              <div className="relative mx-auto aspect-[4/3] w-full max-w-[960px] max-h-[70vh] overflow-hidden rounded-lg border-4 border-[#d6e1ff] bg-[#1c2d4d]">
                 <video
                   ref={videoRef}
                   playsInline
                   muted
-                  className="h-full w-full object-contain scale-x-[-1]"
+                  className="h-full w-full object-contain object-center scale-x-[-1]"
                 />
                 <canvas
                   ref={overlayCanvasRef}
-                  className="pointer-events-none absolute inset-0 h-full w-full scale-x-[-1]"
+                  className="pointer-events-none absolute inset-0 h-full w-full object-contain object-center scale-x-[-1]"
                 />
 
                 <div className="absolute left-4 top-4 flex items-stretch gap-3">
