@@ -1,10 +1,10 @@
-'use client'
-
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 
 export default function LoginPage() {
+  const router = useRouter()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -32,7 +32,7 @@ export default function LoginPage() {
       return
     }
 
-    window.location.href = '/profile'
+    router.push('/base_profile/profile/profile_page')
   }
 
   return (
@@ -81,7 +81,7 @@ export default function LoginPage() {
 
         <p style={styles.switchText}>
           Don&apos;t have an account?{' '}
-          <Link href="/signup" style={styles.link}>Sign up</Link>
+          <Link href="/base_profile/signup/signup_page" style={styles.link}>Sign up</Link>
         </p>
       </div>
     </main>

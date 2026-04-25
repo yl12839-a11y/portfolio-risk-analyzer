@@ -1,8 +1,6 @@
-'use client'
-
 import { useEffect, useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter } from 'next/router'
 import Link from 'next/link'
 
 export default function ProfilePage() {
@@ -11,14 +9,12 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // If not logged in, send to login page
   useEffect(() => {
     if (status === 'unauthenticated') {
-      router.push('/login')
+      router.push('/base_profile/login/login_page')
     }
   }, [status])
 
-  // Fetch this user's stats from the database
   useEffect(() => {
     if (status === 'authenticated') {
       fetch('/api/profile')
@@ -33,7 +29,7 @@ export default function ProfilePage() {
   if (status === 'loading' || loading) {
     return (
       <main style={styles.page}>
-        <p style={{ color: '#888', fontSize: '14px' }}>Loading...</p>
+        <p style={{ color: '#888', fontSize: '14px', textAlign: 'center', paddingTop: '4rem' }}>Loading...</p>
       </main>
     )
   }
@@ -64,12 +60,11 @@ export default function ProfilePage() {
   return (
     <main style={styles.page}>
 
-      {/* Nav */}
       <nav style={styles.nav}>
         <span style={styles.navLogo}>Rep<span style={{ color: '#888' }}>Up</span></span>
         <div style={styles.navRight}>
           <Link href="/leaderboard" style={styles.navLink}>Leaderboard</Link>
-          <button style={styles.logoutBtn} onClick={() => signOut({ callbackUrl: '/login' })}>
+          <button style={styles.logoutBtn} onClick={() => signOut({ callbackUrl: '/base_profile/login/login_page' })}>
             Log out
           </button>
         </div>
@@ -77,7 +72,6 @@ export default function ProfilePage() {
 
       <div style={styles.content}>
 
-        {/* Avatar + name */}
         <div style={styles.header}>
           <div style={styles.avatar}>{initials}</div>
           <div>
@@ -86,7 +80,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Stats row */}
         <div style={styles.statsGrid}>
           <div style={styles.statCard}>
             <span style={styles.statVal}>{profile.points.toLocaleString()}</span>
@@ -102,7 +95,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Level progress */}
         <div style={styles.levelCard}>
           <div style={styles.levelRow}>
             <span style={styles.levelName}>{currentLevel.name}</span>
@@ -120,7 +112,6 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* Account details */}
         <div style={styles.section}>
           <p style={styles.sectionTitle}>Account</p>
           <div style={styles.detailCard}>
@@ -272,7 +263,6 @@ const styles = {
     height: '100%',
     backgroundColor: '#111',
     borderRadius: '3px',
-    transition: 'width 0.6s ease',
   },
   levelHint: {
     fontSize: '12px',

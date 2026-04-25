@@ -1,9 +1,9 @@
-'use client'
-
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 
 export default function SignupPage() {
+  const router = useRouter()
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -48,8 +48,7 @@ export default function SignupPage() {
       return
     }
 
-    // Account created — send them to login
-    window.location.href = '/login'
+    router.push('/base_profile/login/login_page')
   }
 
   return (
@@ -109,7 +108,7 @@ export default function SignupPage() {
 
         <p style={styles.switchText}>
           Already have an account?{' '}
-          <Link href="/login" style={styles.link}>Log in</Link>
+          <Link href="/base_profile/login/login_page" style={styles.link}>Log in</Link>
         </p>
       </div>
     </main>
