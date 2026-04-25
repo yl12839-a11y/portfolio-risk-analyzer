@@ -41,7 +41,6 @@ export default function Roadmap() {
     }
 
     const storedLevel = Number(localStorage.getItem("level"));
-    const storedHP = Number(localStorage.getItem("enemyHP") ?? INITIAL_GAME_STATE.enemyHP);
     const safeLevel =
       Number.isFinite(storedLevel) && storedLevel > 0
         ? Math.min(MAX_LEVEL, storedLevel)
@@ -70,7 +69,6 @@ export default function Roadmap() {
 
   if ((!profile && !gameComplete) || !hydrated) return null;
 
-  const activeLevel = LEVEL_ROADMAP[Math.min(currentLevel, MAX_LEVEL) - 1];
   const winner =
     players.length > 0
       ? players.reduce((best, player) => (player.score > best.score ? player : best), players[0])
