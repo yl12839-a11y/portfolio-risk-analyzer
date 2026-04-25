@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pose Camera</title>
+  <style>
+    body { margin: 0; background: #111; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: monospace; }
+    .container { position: relative; }
+    video  { display: block; width: 640px; border-radius: 8px; }
+    canvas { position: absolute; top: 0; left: 0; width: 640px; }
+    #hud {
+      position: absolute; top: 16px; left: 16px;
+      background: rgba(0,0,0,0.7); border-radius: 8px; padding: 12px 16px;
+      color: white; font-size: 14px; line-height: 1.8; min-width: 200px;
+    }
+    #exercise-select {
+      position: absolute; top: 16px; right: 16px;
+      background: rgba(0,0,0,0.7); border-radius: 8px; padding: 12px 16px;
+      color: white;
+    }
+    #exercise-select button {
+      display: block; width: 100%; margin: 4px 0;
+      padding: 8px 12px; border: 1px solid #444; border-radius: 4px;
+      background: #222; color: white; cursor: pointer; font-family: monospace;
+    }
+    #exercise-select button.active { border-color: #00FF88; color: #00FF88; }
+    #main-count { font-size: 48px; font-weight: bold; line-height: 1; }
+    #form-score { font-size: 20px; margin-top: 4px; }
+    .good { color: #00FF88; }
+    .bad  { color: #FF4444; }
+    .warn { color: #FFAA00; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+
+    <div id="hud">
+      <div id="main-count">0</div>
+      <div id="form-score">--</div>
+      <div id="debug"></div>
+    </div>
+
+    <div id="exercise-select">
+      <div style="margin-bottom:8px; color:#aaa;">Exercise</div>
+      <button id="btn-squat"  class="active">🏋️ Squat</button>
+      <button id="btn-pushup">💪 Push-up</button>
+      <button id="btn-plank">🧘 Plank</button>
+      <button id="btn-reset" style="margin-top:12px; background:#333;">↺ Reset</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { PoseLandmarker, FilesetResolver }
+      from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/vision_bundle.js";
+
+    const video   = document.getElementById("video");
+    const canvas  = document.getElementById("canvas");
+    const ctx     = canvas.getContext("2d");
+    const mainEl  = document.getElementById("main-count");
+    const scoreEl = document.getElementById("form-score");
+    const debugEl = document.getElementById("debug");
+
+    // ── Config — tune these ───────────────────────────────────────────────────
+    const MIN_VISIBILITY = 0.5;
+
+    const EXERCISES = {
+      squat: {
+        DOWN_THRESHOLD: 110,
+        UP_THRESHOLD:   150,
+        MIN_ANGLE:       70,
+        HOLD_REQUIRED:    3,
+      },
+      pushup: {
+        DOWN_THRESHOLD:    90,
+        UP_THRESHOLD:     150,
+        SHOULDER_DOWN:    130,
+        MIN_ANGLE:         50,
+        HOLD_REQUIRED:      3,
+      },
+      plank: {
+        BACK_MIN:       160,
+        HIP_MIN:        155,
+        HOLD_REQUIRED:   30,
+      }
+    };
+
+    let exercise = "squat";
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let repState     = "up";
+    let holdFrames   = 0;
+    let repCount     = 0;
+    let minAngle     = 180;
+    let plankFrames  = 0;
+    let plankSeconds = 0;
+    let plankInterval = null;
+
+    function resetAll() {
+      repState     = "up";
+      holdFrames   = 0;
+      repCount     = 0;
+      minAngle     = 180;
+      plankFrames  = 0;
+      plankSeconds = 0;
+      clearInterval(plankInterval);
+      plankInterval = null;
+      mainEl.textContent  = "0";
+      scoreEl.textContent = "--";
+      scoreEl.className   = "";
+      debugEl.innerHTML   = "";
+    }
+
+    function setExercise(ex) {
+      exercise = ex;
+      document.querySelectorAll("#exercise-select button").forEach(b => b.classList.remove("active"));
+      document.getElementById(`btn-${ex}`).classList.add("active");
+      resetAll();
+    }
+
+    document.getElementById("btn-squat").addEventListener("click",  () => setExercise("squat"));
+    document.getElementById("btn-pushup").addEventListener("click", () => setExercise("pushup"));
+    document.getElementById("btn-plank").addEventListener("click",  () => setExercise("plank"));
+    document.getElementById("btn-reset").addEventListener("click",  () => resetAll());
+
+    // ── 3D angle math ─────────────────────────────────────────────────────────
+    function calcAngle3D(a, b, c) {
+      const ba = { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
+      const bc = { x: c.x - b.x, y: c.y - b.y, z: c.z - b.z };
+      const dot = ba.x * bc.x + ba.y * bc.y + ba.z * bc.z;
+      const mag = Math.sqrt(ba.x**2 + ba.y**2 + ba.z**2)
+                * Math.sqrt(bc.x**2 + bc.y**2 + bc.z**2);
+      if (mag === 0) return 0;
+      return Math.acos(Math.max(-1, Math.min(1, dot / mag))) * 180 / Math.PI;
+    }
+
+    function calculateAngles(lm) {
+      const kneeL     = calcAngle3D(lm[23], lm[25], lm[27]);
+      const kneeR     = calcAngle3D(lm[24], lm[26], lm[28]);
+      const elbowL    = calcAngle3D(lm[11], lm[13], lm[15]);
+      const elbowR    = calcAngle3D(lm[12], lm[14], lm[16]);
+      const shoulderL = calcAngle3D(lm[23], lm[11], lm[13]);
+      const shoulderR = calcAngle3D(lm[24], lm[12], lm[14]);
+      return {
+        knee:     (kneeL     + kneeR)     / 2,
+        elbow:    (elbowL    + elbowR)    / 2,
+        shoulder: (shoulderL + shoulderR) / 2,
+        hipAlign: calcAngle3D(lm[11], lm[23], lm[25]),
+        hip:      calcAngle3D(lm[11], lm[23], lm[25]),
+        back:     calcAngle3D(lm[11], lm[23], lm[24]),
+      };
+    }
+
+    // ── Scoring ───────────────────────────────────────────────────────────────
+    function scoreSquat(minKnee, angles) {
+      let score = 100;
+      if (minKnee > 110)         score -= 30;
+      if (minKnee < 70)          score -= 30;
+      if (angles.back < 160)     score -= 20;
+      if (angles.hip  < 70)      score -= 20;
+      return Math.max(score, 0);
+    }
+
+    function scorePushup(minElbow, angles) {
+      let score = 100;
+      if (minElbow > 100)        score -= 30;
+      if (minElbow < 50)         score -= 20;
+      if (angles.back < 160)     score -= 20;
+      if (angles.hipAlign < 160) score -= 30;
+      return Math.max(score, 0);
+    }
+
+    // ── Rep counters ──────────────────────────────────────────────────────────
+    function countSquat(angles) {
+      const cfg  = EXERCISES.squat;
+      const knee = angles.knee;
+
+      switch (repState) {
+        case "up":
+          if (knee < cfg.DOWN_THRESHOLD) {
+            minAngle = Math.min(minAngle, knee);
+            holdFrames++;
+            if (holdFrames >= cfg.HOLD_REQUIRED) { repState = "down"; holdFrames = 0; }
+          } else { holdFrames = 0; minAngle = 180; }
+          break;
+
+        case "down":
+          minAngle = Math.min(minAngle, knee);
+          if (knee > cfg.UP_THRESHOLD) {
+            holdFrames++;
+            if (holdFrames >= cfg.HOLD_REQUIRED) {
+              if (minAngle > cfg.MIN_ANGLE) {
+                repCount++;
+                const score = scoreSquat(minAngle, angles);
+                mainEl.textContent  = `${repCount}`;
+                scoreEl.textContent = `Last rep: ${score}/100`;
+                scoreEl.className   = score >= 70 ? "good" : "bad";
+              } else {
+                scoreEl.textContent = "Too deep!";
+                scoreEl.className   = "warn";
+              }
+              repState = "up"; holdFrames = 0; minAngle = 180;
+            }
+          } else { holdFrames = 0; }
+          break;
+      }
+    }
+
+    function countPushup(angles) {
+      const cfg      = EXERCISES.pushup;
+      const elbow    = angles.elbow;
+      const shoulder = angles.shoulder;
+      const goodForm = angles.hipAlign > 160;
+
+      switch (repState) {
+        case "up":
+          if (elbow < cfg.DOWN_THRESHOLD && shoulder < cfg.SHOULDER_DOWN && goodForm) {
+            minAngle = Math.min(minAngle, elbow);
+            holdFrames++;
+            if (holdFrames >= cfg.HOLD_REQUIRED) { repState = "down"; holdFrames = 0; }
+          } else { holdFrames = 0; minAngle = 180; }
+          break;
+
+        case "down":
+          minAngle = Math.min(minAngle, elbow);
+          if (elbow > cfg.UP_THRESHOLD) {
+            holdFrames++;
+            if (holdFrames >= cfg.HOLD_REQUIRED) {
+              if (minAngle > cfg.MIN_ANGLE && goodForm) {
+                repCount++;
+                const score = scorePushup(minAngle, angles);
+                mainEl.textContent  = `${repCount}`;
+                scoreEl.textContent = `Last rep: ${score}/100`;
+                scoreEl.className   = score >= 70 ? "good" : "bad";
+              } else if (!goodForm) {
+                scoreEl.textContent = "Hips sagging!";
+                scoreEl.className   = "warn";
+              } else {
+                scoreEl.textContent = "Too deep!";
+                scoreEl.className   = "warn";
+              }
+              repState = "up"; holdFrames = 0; minAngle = 180;
+            }
+          } else { holdFrames = 0; }
+          break;
+      }
+    }
+
+    function countPlank(angles) {
+      const cfg     = EXERCISES.plank;
+      const holding = angles.back > cfg.BACK_MIN && angles.hip > cfg.HIP_MIN;
+
+      if (holding) {
+        plankFrames++;
+        if (plankFrames === cfg.HOLD_REQUIRED && !plankInterval) {
+          plankInterval = setInterval(() => {
+            plankSeconds++;
+            mainEl.textContent  = `${plankSeconds}s`;
+            scoreEl.textContent = "Hold it!";
+            scoreEl.className   = "good";
+          }, 1000);
+        }
+      } else {
+        if (plankInterval) {
+          clearInterval(plankInterval);
+          plankInterval = null;
+          scoreEl.textContent = "Form broke!";
+          scoreEl.className   = "bad";
+        }
+        plankFrames = 0;
+      }
+    }
+
+    // ── Adaptive smoothing ────────────────────────────────────────────────────
+    let smoothed = null;
+
+    function smooth(lm) {
+      if (!smoothed) { smoothed = lm; return lm; }
+      smoothed = lm.map((p, i) => {
+        const dx = p.x - smoothed[i].x;
+        const dy = p.y - smoothed[i].y;
+        const movement = Math.sqrt(dx**2 + dy**2);
+        const alpha = Math.min(0.9, 0.1 + movement * 20);
+        return {
+          x: alpha * p.x + (1 - alpha) * smoothed[i].x,
+          y: alpha * p.y + (1 - alpha) * smoothed[i].y,
+          z: alpha * p.z + (1 - alpha) * smoothed[i].z,
+          visibility: p.visibility
+        };
+      });
+      return smoothed;
+    }
+
+    // ── Draw ──────────────────────────────────────────────────────────────────
+    const SEGMENTS = [
+      [11,12],[11,23],[12,24],[23,24],
+      [11,13],[13,15],[12,14],[14,16],
+      [23,25],[25,27],[24,26],[26,28],
+    ];
+    const JOINTS = [11,12,13,14,15,16,23,24,25,26,27,28];
+
+    function toPixel(lm, idx) {
+      const p = lm[idx];
+      if (p.visibility < MIN_VISIBILITY) return null;
+      return { x: p.x * canvas.width, y: p.y * canvas.height };
+    }
+
+    function drawSkeleton(lm) {
+      ctx.strokeStyle = "#00FF00";
+      ctx.lineWidth = 3;
+      for (const [a, b] of SEGMENTS) {
+        const pa = toPixel(lm, a);
+        const pb = toPixel(lm, b);
+        if (!pa || !pb) continue;
+        ctx.beginPath();
+        ctx.moveTo(pa.x, pa.y);
+        ctx.lineTo(pb.x, pb.y);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#FFFFFF";
+      for (const idx of JOINTS) {
+        const p = toPixel(lm, idx);
+        if (!p) continue;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    }
+
+    function runFrame(lm) {
+      const angles = calculateAngles(lm);
+
+      drawSkeleton(lm);
+
+      if      (exercise === "squat")  countSquat(angles);
+      else if (exercise === "pushup") countPushup(angles);
+      else if (exercise === "plank")  countPlank(angles);
+
+      debugEl.innerHTML = `
+        knee:     ${angles.knee.toFixed(1)}°<br>
+        elbow:    ${angles.elbow.toFixed(1)}°<br>
+        shoulder: ${angles.shoulder.toFixed(1)}°<br>
+        hipAlign: ${angles.hipAlign.toFixed(1)}°<br>
+        back:     ${angles.back.toFixed(1)}°<br>
+        state:    ${exercise === "plank" ? (plankInterval ? "holding" : "waiting") : repState} (${holdFrames}/${EXERCISES[exercise].HOLD_REQUIRED})
+      `;
+    }
+
+    // ── Load MediaPipe ────────────────────────────────────────────────────────
+    const vision = await FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+    );
+    const landmarker = await PoseLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+        delegate: "GPU"
+      },
+      runningMode: "VIDEO",
+      numPoses: 1
+    });
+
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+    await new Promise(resolve => video.addEventListener("loadeddata", resolve, { once: true }));
+
+    // ── Detection loop ────────────────────────────────────────────────────────
+    function detect() {
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const result = landmarker.detectForVideo(video, performance.now());
+
+      if (result.landmarks.length > 0) {
+        const lm = smooth(result.landmarks[0]);
+        runFrame(lm);
+      } else if (smoothed) {
+        // no detection but skeleton still drawable — keep scoring
+        runFrame(smoothed);
+      } else {
+        debugEl.innerHTML = "<span style='color:#FF4444'>waiting for person...</span>";
+      }
+
+      requestAnimationFrame(detect);
+    }
+
+    detect();
+  </script>
+</body>
+</html>

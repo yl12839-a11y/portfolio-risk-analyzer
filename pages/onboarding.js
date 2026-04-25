@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import { signOut } from "next-auth/react";
 
 const GOALS = ["strength", "endurance", "general fitness"];
 
@@ -24,8 +25,8 @@ export default function Onboarding() {
     );
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = (event) => {
+    event.preventDefault();
     const updatedPlayers = players.map((player) => ({
       ...player,
       score: 0,
@@ -43,49 +44,89 @@ export default function Onboarding() {
     router.push("/game");
   };
 
+  const handleLogout = async () => {
+    localStorage.clear();
+    await signOut({ callbackUrl: "/base_profile/login/login_page" });
+  };
+
   if (players.length === 0) return null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0d2a1b] bg-[radial-gradient(circle_at_top_left,_rgba(132,204,22,0.28),_transparent_32%),linear-gradient(135deg,_#102f1f,_#1f5d36_52%,_#d6b15f)] p-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm space-y-6 rounded-lg border border-lime-200/60 bg-lime-50/90 p-8 shadow-xl"
-      >
-        <div className="text-center">
-          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-            Trail Details
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-emerald-950">Quick Setup</h1>
-        </div>
-
-        <div className="space-y-4">
-          {players.map((player, index) => (
-            <div key={`${player.name}-${index}`} className="space-y-2">
-              <label className="block text-sm font-semibold text-emerald-950">
-                {player.name} fitness goal
-              </label>
-              <select
-                value={player.goal}
-                onChange={(e) => updateGoal(index, e.target.value)}
-                className="w-full rounded-lg border border-emerald-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-              >
-                {GOALS.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
+    <main className="pixel-page px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl items-center justify-center">
+        <div className="pixel-panel w-full max-w-4xl p-3 sm:p-5">
+          <div className="pixel-screen p-4 sm:p-6">
+            <div className="mb-8 flex flex-col gap-3 border-b-2 border-white/20 pb-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="pixel-ribbon inline-block px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
+                  Setup
+                </div>
+                <h1 className="mt-3 text-2xl font-black tracking-[0.12em] text-white sm:text-4xl">
+                  Choose Your Goal
+                </h1>
+                <p className="mt-2 max-w-xl text-sm text-blue-100/80 sm:text-base">
+                  Set each player&apos;s training focus before entering the roadmap.
+                </p>
+              </div>
+              <div className="flex items-center gap-3 self-start border-2 border-blue-200/40 bg-black/15 px-3 py-2 text-xs uppercase tracking-[0.2em] text-blue-100 sm:self-auto">
+                <div className="pixel-orb h-5 w-5 shrink-0" />
+                Team Setup
+              </div>
             </div>
-          ))}
-        </div>
 
-        <button
-          type="submit"
-          className="w-full rounded-lg bg-yellow-500 py-2 font-bold text-emerald-950 hover:bg-yellow-400"
-        >
-          Continue to Roadmap
-        </button>
-      </form>
-    </div>
+            <form onSubmit={handleSubmit} className="pixel-subpanel p-4 sm:p-6">
+              <div className="mx-auto max-w-2xl pixel-row p-5 sm:p-6">
+                <div className="mb-6">
+                  <p className="pixel-label text-xs uppercase tracking-[0.16em] text-stone-600">
+                    Player Goals
+                  </p>
+                  <h2 className="mt-2 pixel-title text-2xl text-stone-900">Quick Setup</h2>
+                </div>
+
+                <div className="space-y-4">
+                  {players.map((player, index) => (
+                    <div key={`${player.name}-${index}`} className="rounded-lg border-2 border-[#ccb382] bg-[#fff9ec] p-4">
+                      <label className="pixel-label block text-xs uppercase tracking-[0.16em] text-stone-600">
+                        {player.name} Fitness Goal
+                      </label>
+                      <select
+                        value={player.goal}
+                        onChange={(e) => updateGoal(index, e.target.value)}
+                        className="mt-3 w-full rounded-lg border-2 border-[#ccb382] bg-white px-4 py-3 text-base text-stone-900 outline-none transition focus:border-[#5076cb]"
+                      >
+                        {GOALS.map((goal) => (
+                          <option key={goal} value={goal}>
+                            {goal}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t-2 border-stone-300/80 pt-6 sm:flex-row">
+                  <p className="text-sm text-stone-700">Save the goals, then enter the roadmap.</p>
+                  <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="pixel-btn pixel-btn-secondary px-6 py-3 text-base"
+                    >
+                      Logout
+                    </button>
+                    <button
+                      type="submit"
+                      className="pixel-btn pixel-btn-primary px-6 py-3 text-base"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </main>
   );
 }

@@ -1,201 +1,169 @@
-import { useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/router'
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/router";
 
 export default function SignupPage() {
-  const router = useRouter()
-  const [name, setName] = useState('')
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handleSignup() {
-    setError('')
+    setError("");
 
     if (!name || !username || !password) {
-      setError('Please fill in all fields.')
-      return
+      setError("Please fill in all fields.");
+      return;
     }
 
     if (username.length < 3) {
-      setError('Username must be at least 3 characters.')
-      return
+      setError("Username must be at least 3 characters.");
+      return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters.')
-      return
+      setError("Password must be at least 6 characters.");
+      return;
     }
 
-    setLoading(true)
+    setLoading(true);
 
     try {
-      const res = await fetch('/api/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
           username: username.toLowerCase(),
           password,
         }),
-      })
+      });
 
-      const data = await res.json().catch(() => ({}))
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(data.error || `Signup failed (${res.status}).`)
-        setLoading(false)
-        return
+        setError(data.error || `Signup failed (${res.status}).`);
+        setLoading(false);
+        return;
       }
 
-      router.push('/base_profile/login/login_page')
+      router.push("/base_profile/login/login_page");
     } catch (err) {
-      setError(`Network error: ${err.message}`)
-      setLoading(false)
+      setError(`Network error: ${err.message}`);
+      setLoading(false);
     }
   }
 
   return (
-    <main style={styles.page}>
-      <div style={styles.card}>
-        <h1 style={styles.logo}>
-          Rep<span style={styles.logoAccent}>Up</span>
-        </h1>
-        <p style={styles.subtitle}>Create your account to start training.</p>
+    <main className="pixel-page px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl items-center justify-center">
+        <div className="pixel-panel w-full max-w-4xl p-3 sm:p-5">
+          <div className="pixel-screen p-4 sm:p-6">
+            <div className="mb-8 flex flex-col gap-3 border-b-2 border-white/20 pb-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="pixel-ribbon inline-block px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
+                  Sign Up
+                </div>
+                <h1 className="mt-3 text-2xl font-black tracking-[0.12em] text-white sm:text-4xl">
+                  Create Your Account
+                </h1>
+                <p className="mt-2 max-w-xl text-sm text-blue-100/80 sm:text-base">
+                  Set up your player profile to start the workout game.
+                </p>
+              </div>
+              <div className="flex items-center gap-3 self-start border-2 border-blue-200/40 bg-black/15 px-3 py-2 text-xs uppercase tracking-[0.2em] text-blue-100 sm:self-auto">
+                <div className="pixel-orb h-5 w-5 shrink-0" />
+                New Player
+              </div>
+            </div>
 
-        <div style={styles.fieldGroup}>
-          <label style={styles.label}>Full name</label>
-          <input
-            style={styles.input}
-            type="text"
-            placeholder="Alex Johnson"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            autoComplete="name"
-          />
+            <div className="pixel-subpanel p-4 sm:p-6">
+              <div className="mx-auto max-w-xl pixel-row p-5 sm:p-6">
+                <div className="mb-6">
+                  <p className="pixel-label text-xs uppercase tracking-[0.16em] text-stone-600">
+                    Registration
+                  </p>
+                  <h2 className="mt-2 pixel-title text-2xl text-stone-900">Build Your Profile</h2>
+                </div>
+
+                <div className="space-y-5">
+                  <div>
+                    <label className="pixel-label block text-xs uppercase tracking-[0.16em] text-stone-600">
+                      Full Name
+                    </label>
+                    <input
+                      className="mt-2 w-full rounded-lg border-2 border-[#ccb382] bg-[#fff9ec] px-4 py-3 text-base text-stone-900 outline-none transition focus:border-[#5076cb]"
+                      type="text"
+                      placeholder="Alex Johnson"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      autoComplete="name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="pixel-label block text-xs uppercase tracking-[0.16em] text-stone-600">
+                      Username
+                    </label>
+                    <input
+                      className="mt-2 w-full rounded-lg border-2 border-[#ccb382] bg-[#fff9ec] px-4 py-3 text-base text-stone-900 outline-none transition focus:border-[#5076cb]"
+                      type="text"
+                      placeholder="alex_j"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      autoComplete="username"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="pixel-label block text-xs uppercase tracking-[0.16em] text-stone-600">
+                      Password
+                    </label>
+                    <input
+                      className="mt-2 w-full rounded-lg border-2 border-[#ccb382] bg-[#fff9ec] px-4 py-3 text-base text-stone-900 outline-none transition focus:border-[#5076cb]"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleSignup()}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="mt-5 rounded-lg border-2 border-[#c77d7d] bg-[#f7d6d6] px-4 py-3 text-sm font-semibold text-[#7a2d2d]">
+                    {error}
+                  </div>
+                )}
+
+                <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t-2 border-stone-300/80 pt-6 sm:flex-row">
+                  <p className="text-sm text-stone-700">
+                    Already have an account?{" "}
+                    <Link
+                      href="/base_profile/login/login_page"
+                      className="font-semibold text-[#315cba] underline"
+                    >
+                      Log in
+                    </Link>
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={handleSignup}
+                    disabled={loading}
+                    className="pixel-btn pixel-btn-primary min-w-[220px] px-6 py-3 text-base disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {loading ? "Creating Account..." : "Create Account"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-
-        <div style={styles.fieldGroup}>
-          <label style={styles.label}>Username</label>
-          <input
-            style={styles.input}
-            type="text"
-            placeholder="alex_j"
-            value={username}
-            onChange={e => setUsername(e.target.value)}
-            autoComplete="username"
-          />
-        </div>
-
-        <div style={styles.fieldGroup}>
-          <label style={styles.label}>Password</label>
-          <input
-            style={styles.input}
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSignup()}
-            autoComplete="new-password"
-          />
-        </div>
-
-        {error && <p style={styles.error}>{error}</p>}
-
-        <button
-          style={{ ...styles.btn, opacity: loading ? 0.6 : 1 }}
-          onClick={handleSignup}
-          disabled={loading}
-        >
-          {loading ? 'Creating account...' : 'Create account'}
-        </button>
-
-        <p style={styles.switchText}>
-          Already have an account?{' '}
-          <Link href="/base_profile/login/login_page" style={styles.link}>Log in</Link>
-        </p>
       </div>
     </main>
-  )
-}
-
-const styles = {
-  page: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '1.5rem',
-    backgroundColor: '#f9f9f8',
-  },
-  card: {
-    width: '100%',
-    maxWidth: '380px',
-    backgroundColor: '#ffffff',
-    border: '0.5px solid #e0dfd8',
-    borderRadius: '16px',
-    padding: '2rem',
-  },
-  logo: {
-    fontSize: '24px',
-    fontWeight: '500',
-    marginBottom: '0.5rem',
-    letterSpacing: '-0.5px',
-  },
-  logoAccent: {
-    color: '#888',
-  },
-  subtitle: {
-    fontSize: '14px',
-    color: '#888',
-    marginBottom: '1.5rem',
-  },
-  fieldGroup: {
-    marginBottom: '1rem',
-  },
-  label: {
-    display: 'block',
-    fontSize: '13px',
-    color: '#888',
-    marginBottom: '6px',
-  },
-  input: {
-    width: '100%',
-    padding: '9px 12px',
-    fontSize: '15px',
-    border: '0.5px solid #ddd',
-    borderRadius: '8px',
-    outline: 'none',
-    backgroundColor: '#fff',
-    color: '#111',
-    boxSizing: 'border-box',
-  },
-  error: {
-    fontSize: '13px',
-    color: '#c0392b',
-    marginBottom: '0.75rem',
-  },
-  btn: {
-    width: '100%',
-    padding: '10px',
-    backgroundColor: '#111',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '15px',
-    fontWeight: '500',
-    cursor: 'pointer',
-    marginTop: '0.25rem',
-  },
-  switchText: {
-    fontSize: '13px',
-    color: '#888',
-    textAlign: 'center',
-    marginTop: '1rem',
-  },
-  link: {
-    color: '#111',
-    textDecoration: 'underline',
-  },
+  );
 }
