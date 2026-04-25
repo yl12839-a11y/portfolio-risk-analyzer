@@ -1,8 +1,6 @@
-import { neon } from '@neondatabase/serverless'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-
-const sql = neon(process.env.DATABASE_URL)
+import { sql, ensureSchema } from '@/lib/db'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -22,6 +20,7 @@ export default async function handler(req, res) {
   const points = Math.floor(score)
 
   try {
+    await ensureSchema()
     const rows = await sql`
       UPDATE users
       SET points = points + ${points},
